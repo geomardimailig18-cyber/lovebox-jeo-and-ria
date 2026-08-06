@@ -23,13 +23,11 @@ def sanitize_filename(filename):
 def resize_if_needed(filepath):
     try:
         with Image.open(filepath) as img:
-            # If width exceeds 320 pixels, resize proportionally to fit ESP32 320px buffer limit
             if img.width > 320:
                 w_percent = (320 / float(img.width))
                 h_size = int(float(img.height) * float(w_percent))
                 resample_method = getattr(Image, 'Resampling', Image).LANCZOS
-                img_resized = img.resize((320, h_size), resample_method)
-                img_resized.save(filepath)
+                img.resize((320, h_size), resample_method).save(filepath)
     except Exception as e:
         print(f"Skipping resize due to error: {e}")
 
@@ -47,7 +45,6 @@ def upload_file():
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             
-            # Compress/resize image if it's not an animated GIF
             if not filename.endswith('.gif'):
                 resize_if_needed(filepath)
 
@@ -75,7 +72,6 @@ def upload_drawing():
             with open(filepath, 'wb') as f:
                 f.write(img_bytes)
             
-            # Resize drawing as well to ensure width <= 320
             resize_if_needed(filepath)
 
             current_filename = filename
@@ -92,10 +88,8 @@ def upload_drawing():
 
 @app.route('/longPoll')
 def long_poll():
-    try:
-        update_queue.get(timeout=15)
-    except queue.Empty:
-        pass
+    # Blocks indefinitely until a new image is posted, matching your original repository behavior
+    update_queue.get()
     
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], current_filename)
     if os.path.exists(filepath):
