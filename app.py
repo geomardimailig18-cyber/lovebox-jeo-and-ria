@@ -1,74 +1,80 @@
-from flask import Flask, flash, request, redirect, url_for, render_template, send_file, make_response, jsonify
-from werkzeug.utils import secure_filename
 import os
-import time
+import queue
+import base64
+from flask import Flask, render_template, request, send_from_directory, jsonify
+
 app = Flask(__name__)
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Thread-safe queue for long polling
+update_queue = queue.Queue()
+current_filename = "default.png"
 
 @app.route('/')
-def hello_world():
+def index():
     return render_template('index.html')
 
-# @app.route('/longPoll')
-# def long_poll():
-#     while not(os.path.exists("test.txt")):
-#         time.sleep(1)
-#     testFile = open("test.txt","r")
-#     return "done"
-
-@app.route('/loadTest')
-def load_test():
-    with open('test.txt', 'w') as file:
-        file.write("save test")
-    return "wrote file"
-
-@app.route('/deleteFile')
-def delete_file():
-    if os.path.exists("test.txt"):
-        os.remove("test.txt") # one file at a time
-    return "deleted"
-
-@app.route('/upload', methods=['GET', 'POST'])
+@app.route('/upload', methods=['POST'])
 def upload_file():
-    print("Got upload")
-    if request.method == 'POST':
-        # check if the post request has the file part
-        if 'file' not in request.files:
-            return "No image data"
-            # return redirect(request.url)
+    global current_filename
+    if 'file' in request.files:
         file = request.files['file']
-        # If the user does not select a file, the browser submits an
-        # empty file without a filename.
-        if file.filename == '':
-            return "No selected file"
-            # return redirect(request.url)
-        if file:
-            filename = secure_filename(file.filename)
-            file.save(os.path.join('./', filename))
-            with open('test.txt', 'w') as file:
-                file.write(os.path.join('./', filename))
-            return "done"
-    return '''
-    <!doctype html>
-    <title>Upload new File</title>
-    <h1>Upload new File</h1>
-    <form method=post enctype=multipart/form-data>
-      <input type=file name=file>
-      <input type=submit value=Upload>
-    </form>
-    '''
+        if file.filename != '':
+            filename = file.filename.lower()
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            current_filename = filename
+            
+            # Clear queue and notify waiting ESP32
+            while not update_queue.empty():
+                try:
+                    update_queue.get_nowait()
+                except queue.Empty:
+                    pass
+            update_queue.put(filename)
+            return jsonify({"status": "success", "filename": filename})
+    return jsonify({"status": "error", "message": "No file uploaded"}), 400
 
-
-@app.route('/longPoll', methods=['GET'])
-def return_files_tut():
-    if (os.path.exists("test.txt")):
-        testFile = open("test.txt","r")
-        fileName = testFile.readline()
-        if os.path.exists("test.txt"):
-            os.remove("test.txt") # one file at a time
+@app.route('/upload_drawing', methods=['POST'])
+def upload_drawing():
+    global current_filename
+    data = request.get_json()
+    if data and 'image' in data:
         try:
-            response = make_response(send_file(fileName, download_name=os.path.basename(fileName)))
-            response.headers['imgName'] = os.path.basename(fileName)
-            return response
+            header, encoded = data['image'].split(',', 1)
+            img_bytes = base64.b64decode(encoded)
+            filename = 'drawing.png'
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            with open(filepath, 'wb') as f:
+                f.write(img_bytes)
+            
+            current_filename = filename
+            while not update_queue.empty():
+                try:
+                    update_queue.get_nowait()
+                except queue.Empty:
+                    pass
+            update_queue.put(filename)
+            return jsonify({"status": "success", "filename": filename})
         except Exception as e:
-            return str(e)
-    return make_response("No new file",304)
+            return jsonify({"status": "error", "message": str(e)}), 400
+    return jsonify({"status": "error", "message": "No image data provided"}), 400
+
+@app.route('/longPoll')
+def long_poll():
+    try:
+        update_queue.get(timeout=15)
+    except queue.Empty:
+        pass
+    
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], current_filename)
+    if os.path.exists(filepath):
+        response = send_from_directory(app.config['UPLOAD_FOLDER'], current_filename)
+        response.headers['imgname'] = current_filename
+        return response
+    return "No image found", 404
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
