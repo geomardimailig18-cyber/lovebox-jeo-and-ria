@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+        <link rel="stylesheet" href="{{url_for('static', filename='index.css')}}" />
+        <title>Title</title>
+    </head>
+    <body>
+        <header>
+            <div class="center-container">
+                <img id="preview"></img>
+                <div class="form-container">
+                    <form id='theForm' onsubmit="return submitForm(event,true);">
+                        <label for="file">File</label>
+                        <input type="file" id="img" name="img" accept="image/png, image/jpeg, image/gif" onchange="submitForm(event,false);"/>
+                        <button>Upload</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- <input name="imagefile[]" type="file" id="takePictureField" accept="image/png, image/jpeg, image/gif" onchange="uploadPhotos('#{imageUploadUrl}')" /> -->
+        </header>
+        <script
+            src="https://code.jquery.com/jquery-3.4.1.js"
+            integrity="sha256-WpOohJOqMqqyKL9FccASB9O0KwACQJpFTUBLTYOVvVU="
+            crossorigin="anonymous">
+        </script>
+        <script src="{{url_for('static', filename='gif.js')}}"></script>
+        <script src="{{url_for('static', filename='gifDecoder.js')}}"></script>
+        <script src="{{url_for('static', filename='script.js')}}"></script>
+    </body>
+</html>
