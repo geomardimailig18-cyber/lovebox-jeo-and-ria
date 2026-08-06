@@ -1,6 +1,7 @@
 import os
 import queue
 import base64
+import re
 from flask import Flask, render_template, request, send_from_directory, jsonify
 
 app = Flask(__name__)
@@ -12,6 +13,13 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 update_queue = queue.Queue()
 current_filename = "default.png"
 
+def sanitize_filename(filename):
+    # Convert to lowercase, replace spaces with underscores, remove unsafe characters
+    filename = filename.lower().strip()
+    filename = re.sub(r'\s+', '_', filename)
+    filename = re.sub(r'[^a-z0-9_.-]', '', filename)
+    return filename if filename else "image.png"
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -22,7 +30,7 @@ def upload_file():
     if 'file' in request.files:
         file = request.files['file']
         if file.filename != '':
-            filename = file.filename.lower()
+            filename = sanitize_filename(file.filename)
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             current_filename = filename
