@@ -23,13 +23,11 @@ def sanitize_filename(filename):
 def resize_if_needed(filepath):
     try:
         with Image.open(filepath) as img:
-            # Correct orientation based on EXIF data (e.g., phone photos taken vertically)
             try:
                 img = ImageOps.exif_transpose(img)
             except Exception:
                 pass
 
-            # Flatten transparency onto a white background and convert to RGB for PNGdec compatibility
             if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
                 background = Image.new("RGB", img.size, (255, 255, 255))
                 if img.mode == 'P':
@@ -42,14 +40,12 @@ def resize_if_needed(filepath):
             elif img.mode != 'RGB':
                 img = img.convert('RGB')
 
-            # Resize proportionally if width exceeds 320 pixels
             if img.width > 320:
                 w_percent = (320 / float(img.width))
                 h_size = int(float(img.height) * float(w_percent))
                 resample_method = getattr(Image, 'Resampling', Image).LANCZOS
                 img = img.resize((320, h_size), resample_method)
 
-            # Strip ICC profiles and metadata that break embedded decoders like PNGdec
             if 'icc_profile' in img.info:
                 del img.info['icc_profile']
 
@@ -95,7 +91,7 @@ def upload_drawing():
             img_bytes = base64.b64decode(encoded)
             filename = 'drawing.png'
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            with open(filepath, 'wb') as f:
+            with open(filepath, 'wb' ) as f:
                 f.write(img_bytes)
             
             resize_if_needed(filepath)
@@ -114,15 +110,20 @@ def upload_drawing():
 
 @app.route('/longPoll')
 def long_poll():
-    # Blocks indefinitely until a new image is posted, matching your original repository behavior
-    update_queue.get()
+    try:
+        # Wait up to 15 seconds to prevent Render's proxy from killing idle sockets (avoids error -11)
+        update_queue.get(timeout=15)
+        
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], current_filename)
+        if os.path.exists(filepath):
+            response = send_from_directory(app.config['UPLOAD_FOLDER'], current_filename)
+            response.headers['imgname'] = current_filename
+            return response
+    except queue.Empty:
+        pass
     
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], current_filename)
-    if os.path.exists(filepath):
-        response = send_from_directory(app.config['UPLOAD_FOLDER'], current_filename)
-        response.headers['imgname'] = current_filename
-        return response
-    return "No image found", 404
+    # Returns 404 on timeout; the ESP32 gracefully catches this and immediately re-polls
+    return "No new image", 404
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
