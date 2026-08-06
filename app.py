@@ -23,7 +23,7 @@ def sanitize_filename(filename):
 def resize_if_needed(filepath):
     try:
         with Image.open(filepath) as img:
-            # If width exceeds 320 pixels, resize proportionally to prevent ESP32 memory overflow
+            # If width exceeds 320 pixels, resize proportionally to fit ESP32 320px buffer limit
             if img.width > 320:
                 w_percent = (320 / float(img.width))
                 h_size = int(float(img.height) * float(w_percent))
@@ -75,7 +75,7 @@ def upload_drawing():
             with open(filepath, 'wb') as f:
                 f.write(img_bytes)
             
-            # Resize drawing as well to ensure safety
+            # Resize drawing as well to ensure width <= 320
             resize_if_needed(filepath)
 
             current_filename = filename
