@@ -3,7 +3,7 @@ import queue
 import base64
 import re
 from flask import Flask, render_template, request, send_from_directory, jsonify
-from PIL import Image
+from PIL import Image, ImageOps
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -23,6 +23,12 @@ def sanitize_filename(filename):
 def resize_if_needed(filepath):
     try:
         with Image.open(filepath) as img:
+            # Correct orientation based on EXIF data (e.g., phone photos taken vertically)
+            try:
+                img = ImageOps.exif_transpose(img)
+            except Exception:
+                pass
+
             # Flatten transparency onto a white background and convert to RGB for PNGdec compatibility
             if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
                 background = Image.new("RGB", img.size, (255, 255, 255))
