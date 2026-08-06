@@ -23,13 +23,33 @@ def sanitize_filename(filename):
 def resize_if_needed(filepath):
     try:
         with Image.open(filepath) as img:
+            # Flatten transparency onto a white background and convert to RGB for PNGdec compatibility
+            if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                background = Image.new("RGB", img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                if img.mode == 'RGBA':
+                    background.paste(img, mask=img.split()[3])
+                else:
+                    background.paste(img)
+                img = background
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+
+            # Resize proportionally if width exceeds 320 pixels
             if img.width > 320:
                 w_percent = (320 / float(img.width))
                 h_size = int(float(img.height) * float(w_percent))
                 resample_method = getattr(Image, 'Resampling', Image).LANCZOS
-                img.resize((320, h_size), resample_method).save(filepath)
+                img = img.resize((320, h_size), resample_method)
+
+            # Strip ICC profiles and metadata that break embedded decoders like PNGdec
+            if 'icc_profile' in img.info:
+                del img.info['icc_profile']
+
+            img.save(filepath, "PNG", optimize=False)
     except Exception as e:
-        print(f"Skipping resize due to error: {e}")
+        print(f"Skipping resize/conversion due to error: {e}")
 
 @app.route('/')
 def index():
