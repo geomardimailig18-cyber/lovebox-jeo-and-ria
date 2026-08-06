@@ -73,7 +73,7 @@ def upload_drawing():
 @app.route('/longPoll')
 def long_poll():
     try:
-        update_queue.get(timeout=15)
+        update_queue.get(timeout=5)
     except queue.Empty:
         pass
     
