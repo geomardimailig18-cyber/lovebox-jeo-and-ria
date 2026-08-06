@@ -3,6 +3,7 @@ import queue
 import base64
 import re
 from flask import Flask, render_template, request, send_from_directory, jsonify
+from PIL import Image
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -14,11 +15,23 @@ update_queue = queue.Queue()
 current_filename = "default.png"
 
 def sanitize_filename(filename):
-    # Convert to lowercase, replace spaces with underscores, remove unsafe characters
     filename = filename.lower().strip()
     filename = re.sub(r'\s+', '_', filename)
     filename = re.sub(r'[^a-z0-9_.-]', '', filename)
     return filename if filename else "image.png"
+
+def resize_if_needed(filepath):
+    try:
+        with Image.open(filepath) as img:
+            # If width exceeds 320 pixels, resize proportionally to prevent ESP32 memory overflow
+            if img.width > 320:
+                w_percent = (320 / float(img.width))
+                h_size = int(float(img.height) * float(w_percent))
+                resample_method = getattr(Image, 'Resampling', Image).LANCZOS
+                img_resized = img.resize((320, h_size), resample_method)
+                img_resized.save(filepath)
+    except Exception as e:
+        print(f"Skipping resize due to error: {e}")
 
 @app.route('/')
 def index():
@@ -33,9 +46,13 @@ def upload_file():
             filename = sanitize_filename(file.filename)
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
+            
+            # Compress/resize image if it's not an animated GIF
+            if not filename.endswith('.gif'):
+                resize_if_needed(filepath)
+
             current_filename = filename
             
-            # Clear queue and notify waiting ESP32
             while not update_queue.empty():
                 try:
                     update_queue.get_nowait()
@@ -58,6 +75,9 @@ def upload_drawing():
             with open(filepath, 'wb') as f:
                 f.write(img_bytes)
             
+            # Resize drawing as well to ensure safety
+            resize_if_needed(filepath)
+
             current_filename = filename
             while not update_queue.empty():
                 try:
@@ -73,7 +93,7 @@ def upload_drawing():
 @app.route('/longPoll')
 def long_poll():
     try:
-        update_queue.get(timeout=5)
+        update_queue.get(timeout=15)
     except queue.Empty:
         pass
     
