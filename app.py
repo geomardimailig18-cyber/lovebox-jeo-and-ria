@@ -16,7 +16,7 @@ pending_image_filename = None
 def index():
     return render_template('index.html')
 
-@app.route('/upload_drawing', methods=['POST'])
+@app.route('/upload', methods=['POST'])
 def upload_drawing():
     global pending_image_path, pending_image_filename
     
