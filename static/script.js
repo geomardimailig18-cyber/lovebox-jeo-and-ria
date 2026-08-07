@@ -1,99 +1,98 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const canvas = document.getElementById('drawingCanvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    
-    let isDrawing = false;
-    
-    // Set initial canvas background to white
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    function startDrawing(e) {
-        isDrawing = true;
-        draw(e);
+    // Existing file upload handling
+    const uploadForm = document.getElementById('uploadForm');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(uploadForm);
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                alert(result.status === 'success' ? 'File uploaded successfully!' : 'Upload failed.');
+            } catch (err) {
+                alert('Error connecting to the server.');
+            }
+        });
     }
 
-    function stopDrawing() {
-        isDrawing = false;
+    // New Drawing Canvas Logic
+    const canvas = document.getElementById('drawCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+
+    // Default background to black for ESP32 display compatibility
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+    }
+
+    function startDraw(e) {
+        isDrawing = true;
+        const pos = getPos(e);
         ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+        e.preventDefault();
     }
 
     function draw(e) {
         if (!isDrawing) return;
-        
-        ctx.lineWidth = 5;
+        const pos = getPos(e);
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 3;
         ctx.lineCap = 'round';
-        ctx.strokeStyle = '#000000';
-
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-        
-        if (clientX === undefined || clientY === undefined) return;
-
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
-
-        ctx.lineTo(x, y);
+        ctx.lineTo(pos.x, pos.y);
         ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x, y);
+        e.preventDefault();
+    }
+
+    function stopDraw() {
+        isDrawing = false;
     }
 
     // Mouse events
-    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousedown', startDraw);
     canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing);
-    canvas.addEventListener('mouseleave', stopDrawing);
+    canvas.addEventListener('mouseup', stopDraw);
+    canvas.addEventListener('mouseleave', stopDraw);
 
-    // Touch events for mobile devices
-    canvas.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        startDrawing(e);
-    }, { passive: false });
-    canvas.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        draw(e);
-    }, { passive: false });
-    canvas.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        stopDrawing();
+    // Touch events for mobile/tablet screens
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+    canvas.addEventListener('touchend', stopDraw);
+
+    // Clear button functionality
+    document.getElementById('clearBtn').addEventListener('click', () => {
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
     });
 
-    // Clear button handler
-    const clearBtn = document.getElementById('clearBtn');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        });
-    }
-
-    // Send button handler
-    const sendBtn = document.getElementById('sendBtn');
-    if (sendBtn) {
-        sendBtn.addEventListener('click', () => {
-            canvas.toBlob(function(blob) {
-                let formData = new FormData();
-                formData.append('image', blob, 'drawing.png');
-
-                fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Success:', data);
-                    alert('Drawing sent successfully!');
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                    alert('Error connecting to server');
-                });
-            }, 'image/png');
-        });
-    }
+    // Send drawing button functionality
+    document.getElementById('sendDrawingBtn').addEventListener('click', async () => {
+        const dataURL = canvas.toDataURL('image/png');
+        try {
+            const response = await fetch('/upload_drawing', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ image: dataURL })
+            });
+            const result = await response.json();
+            alert(result.status === 'success' ? 'Drawing sent to Love Box!' : 'Failed to send drawing.');
+        } catch (err) {
+            alert('Error connecting to the server.');
+        }
+    });
 });
