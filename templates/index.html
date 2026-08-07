@@ -3,33 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Love Box Control Panel</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}">
+    <title>Lovebox - Send Drawing or Picture</title>
+    <link rel="stylesheet" href="/static/index.css">
 </head>
 <body>
     <div class="container">
-        <h1>Love Box Control Panel</h1>
+        <h1>Lovebox Sender</h1>
         
-        <!-- Original Upload Form -->
-        <div class="section">
-            <h2>Upload Image or GIF</h2>
-            <form id="uploadForm" enctype="multipart/form-data">
-                <input type="file" name="file" id="fileInput" accept=".png, .gif">
-                <button type="submit">Upload & Send</button>
-            </form>
+        <!-- Canvas Drawing Section -->
+        <div class="drawing-section">
+            <h3>Draw Something</h3>
+            <canvas id="drawingCanvas" width="320" height="240"></canvas>
+            <div class="button-group">
+                <button id="clearBtn" type="button">Clear</button>
+                <button id="sendBtn" type="button">Send Drawing</button>
+            </div>
         </div>
 
-        <!-- New Drawing Canvas Section -->
-        <div class="section">
-            <h2>Draw a Message</h2>
-            <canvas id="drawCanvas" width="320" height="240"></canvas>
-            <div class="button-group">
-                <button type="button" id="clearBtn">Clear</button>
-                <button type="button" id="sendDrawingBtn">Send Drawing</button>
-            </div>
+        <hr style="margin: 20px 0;">
+
+        <!-- Standard Picture / GIF Upload Section -->
+        <div class="upload-section">
+            <h3>Or Upload a Picture/GIF</h3>
+            <form action="/upload" method="POST" enctype="multipart/form-data">
+                <input type="file" name="image" accept="image/*" required>
+                <button type="submit">Upload Picture</button>
+            </form>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="/static/script.js"></script>
 </body>
 </html>
