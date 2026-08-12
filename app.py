@@ -10,6 +10,9 @@ UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+MUSIC_FOLDER = 'music'
+app.config['MUSIC_FOLDER'] = MUSIC_FOLDER
+
 # Thread-safe queue for long polling
 update_queue = queue.Queue()
 current_filename = "default.png"
@@ -124,6 +127,15 @@ def long_poll():
     
     # Returns 404 on timeout; the ESP32 gracefully catches this and immediately re-polls
     return "No new image", 404
+
+@app.route('/music/songs.json')
+def music_manifest():
+    return send_from_directory(app.config['MUSIC_FOLDER'], 'songs.json')
+
+@app.route('/music/<path:filename>')
+def music_file(filename):
+    # send_from_directory safely rejects path traversal attempts (../ etc.)
+    return send_from_directory(app.config['MUSIC_FOLDER'], filename)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
