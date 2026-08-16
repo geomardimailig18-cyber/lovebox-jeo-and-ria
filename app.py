@@ -23,7 +23,9 @@ def sanitize_filename(filename):
     filename = re.sub(r'[^a-z0-9_.-]', '', filename)
     return filename if filename else "image.png"
 
-def resize_if_needed(filepath):
+def resize_if_needed(filepath, output_filepath=None):
+    if output_filepath is None:
+        output_filepath = filepath
     try:
         with Image.open(filepath) as img:
             try:
@@ -52,7 +54,7 @@ def resize_if_needed(filepath):
             if 'icc_profile' in img.info:
                 del img.info['icc_profile']
 
-            img.save(filepath, "PNG", optimize=False)
+            img.save(output_filepath, "PNG", optimize=False)
     except Exception as e:
         print(f"Skipping resize/conversion due to error: {e}")
 
@@ -66,12 +68,24 @@ def upload_file():
     if 'file' in request.files:
         file = request.files['file']
         if file.filename != '':
-            filename = sanitize_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
+            raw_filename = sanitize_filename(file.filename)
+            temp_filepath = os.path.join(app.config['UPLOAD_FOLDER'], raw_filename)
+            file.save(temp_filepath)
             
-            if not filename.endswith('.gif'):
-                resize_if_needed(filepath)
+            # GIFs are kept as .gif for animated playback
+            if raw_filename.endswith('.gif'):
+                filename = raw_filename
+            else:
+                # Automatically convert .jfif, .jpg, .jpeg, .webp, etc. to .png
+                base_name = os.path.splitext(raw_filename)[0]
+                filename = f"{base_name}.png"
+                png_filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                
+                resize_if_needed(temp_filepath, png_filepath)
+                
+                # Remove temporary original if it had a different extension
+                if temp_filepath != png_filepath and os.path.exists(temp_filepath):
+                    os.remove(temp_filepath)
 
             current_filename = filename
             
@@ -94,7 +108,7 @@ def upload_drawing():
             img_bytes = base64.b64decode(encoded)
             filename = 'drawing.png'
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            with open(filepath, 'wb' ) as f:
+            with open(filepath, 'wb') as f:
                 f.write(img_bytes)
             
             resize_if_needed(filepath)
